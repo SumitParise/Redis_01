@@ -1,0 +1,168 @@
+@Host = http://localhost:5028
+
+### ==========================================
+### 1. BASIC CACHING ENDPOINTS (StackExchange.Redis)
+### ==========================================
+
+# @name SetBasicString
+POST {{Host}}/api/BasicCache/set?key=test_string&value=HelloWorld!
+Accept: application/json
+
+###
+
+# @name GetBasicString
+GET {{Host}}/api/BasicCache/get?key=test_string
+Accept: application/json
+
+###
+
+# @name CheckExists
+GET {{Host}}/api/BasicCache/exists?key=test_string
+Accept: application/json
+
+###
+
+# @name DeleteKey
+DELETE {{Host}}/api/BasicCache/delete?key=test_string
+Accept: application/json
+
+###
+
+# @name CheckExistsAfterDelete
+GET {{Host}}/api/BasicCache/exists?key=test_string
+Accept: application/json
+
+
+### ==========================================
+### 2. EXPIRATION ENDPOINTS
+### ==========================================
+
+# @name SetAbsoluteExpiry
+# Will expire in 10 seconds.
+POST {{Host}}/api/Expiration/absolute?key=abs_key&value=IMustExpire&seconds=10
+Accept: application/json
+
+###
+
+# @name SetSlidingExpiry
+# Will slide (extend) by 15 seconds every time it's retrieved.
+POST {{Host}}/api/Expiration/sliding?key=slide_key&value=ISlideOnRead&seconds=15
+Accept: application/json
+
+###
+
+# @name GetAbsoluteExpiryCheck
+# Call multiple times to see the RemainingTtlSeconds decrease.
+GET {{Host}}/api/Expiration/get?key=abs_key
+Accept: application/json
+
+###
+
+# @name GetSlidingExpiryCheck
+# Call multiple times within 15 seconds. Note that ActionTaken resets the TTL!
+GET {{Host}}/api/Expiration/get?key=slide_key&slidingSeconds=15
+Accept: application/json
+
+
+### ==========================================
+### 3. OBJECT CACHING ENDPOINTS
+### ==========================================
+
+# @name SetComplexObject
+POST {{Host}}/api/ObjectCache/set?key=product:99&expiryMinutes=5
+Content-Type: application/json
+
+{
+  "id": 99,
+  "name": "Noise Cancelling Earbuds",
+  "price": 79.99,
+  "description": "Ergonomic in-ear headphones with custom sound profile."
+}
+
+###
+
+# @name GetComplexObject
+GET {{Host}}/api/ObjectCache/get?key=product:99
+Accept: application/json
+
+
+### ==========================================
+### 4. CACHE-ASIDE (LAZY LOADING) PATTERN
+### ==========================================
+
+# @name CacheAsideMiss
+# First call: Cache MISS. Takes ~1.5s because it calls the slow mock database.
+GET {{Host}}/api/CacheAside/product/1
+Accept: application/json
+
+###
+
+# @name CacheAsideHit
+# Second call: Cache HIT! Returns instantly (< 10ms) from Redis cache.
+GET {{Host}}/api/CacheAside/product/1
+Accept: application/json
+
+
+### ==========================================
+### 5. DISTRIBUTED CACHE ENDPOINTS (IDistributedCache)
+### ==========================================
+
+# @name SetDistributedObject
+POST {{Host}}/api/DistributedCache/product/set?key=product_dist
+Content-Type: application/json
+
+{
+  "id": 100,
+  "name": "Smart Watch Series 10",
+  "price": 249.99,
+  "description": "Fitness tracking smartwatch with AMOLED screen."
+}
+
+###
+
+# @name GetDistributedObject
+GET {{Host}}/api/DistributedCache/product/get?key=product_dist
+Accept: application/json
+
+###
+
+# @name DeleteDistributedObject
+DELETE {{Host}}/api/DistributedCache/product/delete?key=product_dist
+Accept: application/json
+
+
+### ==========================================
+### 6. CACHE REFRESH STRATEGIES (Full vs Delta)
+### ==========================================
+
+# RECOMMENDED TESTING SEQUENCE:
+# Step A: Run a Full Refresh to ensure the cache matches the current database.
+# Step B: Check products to verify they are cached.
+# Step C: Simulate a database update (marks records 2 & 4 as modified).
+# Step D: Run Delta Refresh (will query only modified products from mock db and update them).
+# Step E: Compare both strategies sequentially.
+
+### Step A: Run initial Full Refresh to populate cache
+# @name FullRefreshInitial
+POST {{Host}}/api/CacheRefresh/full-refresh
+Accept: application/json
+
+### Step B: Verify product 2 is cached
+# @name VerifyProduct2Cached
+GET {{Host}}/api/CacheAside/product/2
+Accept: application/json
+
+### Step C: Simulate database modifications (updates product 2 & 4)
+# @name SimulateUpdate
+POST {{Host}}/api/CacheRefresh/simulate-data-change
+Accept: application/json
+
+### Step D: Run Delta Refresh to update only modified keys (product 2 & 4)
+# @name DeltaRefresh
+POST {{Host}}/api/CacheRefresh/delta-refresh
+Accept: application/json
+
+### Step E: Run the side-by-side performance audit
+# @name CompareRefreshes
+GET {{Host}}/api/CacheRefresh/compare
+Accept: application/json

@@ -1,0 +1,30 @@
+## Ignore Visual Studio & .NET temporary/build files
+bin/
+obj/
+[Dd]ebug/
+[Rr]elease/
+*.user
+*.userosscache
+*.sln.docstates
+.vs/
+
+## Ignore VS Code files
+.vscode/
+
+## Ignore Rider/Resharper files
+.idea/
+*.usersettings
+
+## OS files
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+## Docker
+.dockerignore
+
+## User Secrets & environment
+appsettings.Development.json
+*.local
+*.env
+*.usersecrets
