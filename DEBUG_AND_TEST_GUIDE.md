@@ -1,160 +1,160 @@
-# Debugging, Testing, and Learning Redis Caching Patterns
+# 🐛 Redis Caching Learning Project - Debug & Test Guide
 
-This guide walks you through starting the application, setting up debug breakpoints to understand the code execution flow, and visually inspecting keys in Redis for **all 6 caching concepts** exposed in Swagger.
+## 🚀 1. STARTUP SECTION
 
----
+### Starting External Dependencies
+This project uses Docker to run Redis and a Redis GUI management tool. Based on [docker-compose.yml](file:///C:/Study/.NET-Projects/Redis-01/docker-compose.yml), you need to start these services before running the application:
 
-## 🛠️ Step 1: Start Redis and Redis Commander
+```bash
+docker-compose up -d
+```
+- **Redis Server**: Runs on host port `6380` (mapped from 6379 internally) to avoid conflicts with other local Redis instances.
+- **Redis Commander (GUI)**: Available at `http://localhost:8081`. You can use this to visually inspect the keys stored in Redis.
 
-Since Redis is an external database, you must start it before running the .NET application.
+### Running the .NET Application
+Based on [launchSettings.json](file:///C:/Study/.NET-Projects/Redis-01/RedisCacheLearning/Properties/launchSettings.json) and [Program.cs](file:///C:/Study/.NET-Projects/Redis-01/RedisCacheLearning/Program.cs):
+- **Visual Studio**: Press `F5` to run with debugging.
+- **VS Code**: Press `F5` or select `Run and Debug` from the side panel.
+- **dotnet CLI**: Open a terminal in the `RedisCacheLearning` folder and run:
+  ```bash
+  dotnet run
+  ```
 
-1. Open your terminal in the project root (`c:\Study\.NET-Projects\Redis-01`).
-2. Start the Docker containers:
-   ```bash
-   docker-compose up -d
-   ```
-3. Open your browser and navigate to the Redis Commander dashboard:
-   👉 **[http://localhost:8081](http://localhost:8081)**
-   *(This UI lets you see keys, values, and TTLs in real-time!)*
-4. Alternatively, open **RedisInsight** and connect to:
-   - **Host:** `localhost`
-   - **Port:** `6380` *(Changed from 6379 to avoid conflicts with other local Redis instances)*
+### Swagger UI
+Once running, the Swagger UI is available at:
+👉 **`http://localhost:5028/swagger`**
 
----
-
-## 💻 Step 2: Run the Web API in Debug Mode
-
-To step through the code and inspect variables, run the project with a debugger attached.
-
-### Option A: Using Visual Studio 2022
-1. Open the solution file `RedisCacheLearning.slnx`.
-2. Set `RedisCacheLearning` as the startup project (it should be set automatically).
-3. Press **F5** (or click the green **Start/Debug** button).
-4. Visual Studio will launch the application and open your browser to the Swagger UI page:
-   👉 **[http://localhost:5028/swagger](http://localhost:5028/swagger)**
-
-### Option B: Using VS Code
-1. Open the root workspace folder in VS Code.
-2. If prompted to add missing assets to build/debug, select **Yes**.
-3. Go to the **Run and Debug** view (`Ctrl+Shift+D`).
-4. Select **.NET Core Launch (web)** and click the **Start Debugging** icon (or press **F5**).
 
 ---
 
-## 🎯 Step 3: Walkthroughs for All Caching Concepts
+## 🧠 2. CONCEPT-BY-CONCEPT LEARNING WALKTHROUGH
 
-To understand the mechanics of each concept, open the corresponding controller file in your IDE, set the recommended breakpoints, and execute the requests via Swagger or the `RedisCacheLearning.http` file.
+### 1️⃣ Basic Redis Operations
+🔗 **[BasicCacheController.cs](file:///C:/Study/.NET-Projects/Redis-01/RedisCacheLearning/Controllers/BasicCacheController.cs)**
 
----
+- `POST /api/BasicCache/set`
+- `GET /api/BasicCache/get`
+- `GET /api/BasicCache/exists`
+- `DELETE /api/BasicCache/delete`
 
-### Concept 1: Basic Caching (`BasicCacheController`)
-* **API Endpoints:**
-  - `POST /api/BasicCache/set` (Store a raw string key-value)
-  - `GET /api/BasicCache/get` (Retrieve a string value)
-  - `GET /api/BasicCache/exists` (Check if key exists)
-  - `DELETE /api/BasicCache/delete` (Remove a key)
-* **What it teaches:** Direct, low-level usage of `StackExchange.Redis` (`StringSetAsync`, `StringGetAsync`, `KeyExistsAsync`, `KeyDeleteAsync`).
-* **Debugging Walkthrough:**
-  1. Open [BasicCacheController.cs](file:///c:/Study/.NET-Projects/Redis-01/RedisCacheLearning/Controllers/BasicCacheController.cs).
-  2. Place a breakpoint on `StringGetAsync` inside `GetString`.
-  3. Execute `POST /api/BasicCache/set?key=learn_key&value=RedisIsFun`.
-  4. Execute `GET /api/BasicCache/get?key=learn_key`.
-  5. Step over (**F10**) and inspect the `value` variable. You will see it holds the string `"RedisIsFun"`.
-  6. Look at **RedisInsight**. You will see the key `learn_key` with value `"RedisIsFun"` and no expiration (TTL = -1).
+**What this teaches**: Demonstrates the foundational Redis operations (GET, SET, DELETE, EXISTS) using the direct `StackExchange.Redis` client (`IConnectionMultiplexer`).
 
----
+**Step-by-step debugging walkthrough**:
+1. Open `BasicCacheController.cs` and set a breakpoint on **Line 41** inside `SetString()`.
+2. Go to Swagger and call `POST /api/BasicCache/set` with a test key and value.
+3. When the breakpoint hits, step over (F10). Inspect the `success` boolean to ensure it's `true`.
+4. Open **Redis Commander** (`http://localhost:8081`) and observe your key appearing in the database.
+5. Trigger a second call to `GET /api/BasicCache/get` for the same key to see the retrieval in action.
 
-### Concept 2: Absolute & Sliding Expiration (`ExpirationController`)
-* **API Endpoints:**
-  - `POST /api/Expiration/absolute` (Set key with absolute expiry)
-  - `POST /api/Expiration/sliding` (Set key with sliding expiry)
-  - `GET /api/Expiration/get` (Get key and check/update sliding TTL)
-* **What it teaches:** Difference between absolute expiration (expired at a fixed time) and sliding expiration (extended on every read). Teaches how sliding expiration is implemented in raw Redis by resetting TTL programmatically.
-* **Debugging Walkthrough:**
-  1. Open [ExpirationController.cs](file:///c:/Study/.NET-Projects/Redis-01/RedisCacheLearning/Controllers/ExpirationController.cs).
-  2. Place a breakpoint inside `GetWithExpirationCheck` (around line 105).
-  3. Call `POST /api/Expiration/sliding?key=session_key&value=ActiveSession&seconds=30`.
-  4. Call `GET /api/Expiration/get?key=session_key&slidingSeconds=30`.
-  5. In the debugger, check the `isSliding` boolean. Step through the `if (isSliding)` block. Notice the call to `KeyExpireAsync(key, newTtl)`. This extends the lifetime of the key by another 30 seconds.
 
----
+### 2️⃣ Expiration (Absolute vs. Sliding)
+🔗 **[ExpirationController.cs](file:///C:/Study/.NET-Projects/Redis-01/RedisCacheLearning/Controllers/ExpirationController.cs)**
 
-### Concept 3: Complex Objects Caching (`ObjectCacheController`)
-* **API Endpoints:**
-  - `POST /api/ObjectCache/set` (Serialize and save C# object)
-  - `GET /api/ObjectCache/get` (Read and deserialize back to C# object)
-* **What it teaches:** Redis only stores text/bytes. To cache custom C# classes, you must serialize them (e.g., to JSON using `System.Text.Json`) and deserialize them when loading.
-* **Debugging Walkthrough:**
-  1. Open [ObjectCacheController.cs](file:///c:/Study/.NET-Projects/Redis-01/RedisCacheLearning/Controllers/ObjectCacheController.cs).
-  2. Place breakpoints in both `SetObject` and `GetObject`.
-  3. Send a `POST /api/ObjectCache/set` with a `Product` JSON body (e.g. key `product:99`).
-  4. Observe `JsonSerializer.Serialize(product)` converting the class to a JSON string.
-  5. Call `GET /api/ObjectCache/get?key=product:99`.
-  6. Observe `JsonSerializer.Deserialize<Product>(jsonResult)` converting the raw string back into a C# `Product` instance.
+- `POST /api/Expiration/absolute`
+- `POST /api/Expiration/sliding`
+- `GET /api/Expiration/get`
 
----
+**What this teaches**: Explains how to set a cache key to expire at a fixed time (Absolute) vs resetting the timer every time the key is accessed (Sliding).
 
-### Concept 4: Cache-Aside (Lazy Loading) Pattern (`CacheAsideController`)
-* **API Endpoints:**
-  - `GET /api/CacheAside/product/{id}` (Get product via Cache-Aside)
-* **What it teaches:** The most common caching pattern. Check cache first. If hit, return instantly. If miss, load from slow DB, save to cache, and return.
-* **Debugging Walkthrough:**
-  1. Open [CacheAsideController.cs](file:///c:/Study/.NET-Projects/Redis-01/RedisCacheLearning/Controllers/CacheAsideController.cs).
-  2. Place a breakpoint on `StringGetAsync` (around line 53).
-  3. Call `GET /api/CacheAside/product/1`.
-  4. **First Call (Cache Miss):** Step through the code using **F10**. You'll see that `cachedProduct.HasValue` is `false`. The execution goes down to `MockDatabase.GetByIdAsync(id)`, pauses for 1.5 seconds (simulated database delay), stores the serialized JSON string in Redis via `StringSetAsync`, and returns the product.
-  5. **Second Call (Cache Hit):** Execute the same request again. Step over (**F10**). You'll see that `cachedProduct.HasValue` is now `true`! The execution immediately goes inside the `if` block, deserializes the JSON, and returns instantly without hitting the slow database.
+**Step-by-step debugging walkthrough**:
+1. Open `ExpirationController.cs` and set a breakpoint on **Line 125** inside `GetWithExpirationCheck()`.
+2. Call `POST /api/Expiration/sliding` via Swagger to create a sliding key.
+3. Call `GET /api/Expiration/get` using the key you just created.
+4. When the breakpoint hits, inspect `currentTtl`. Press F10 to observe `isSliding` evaluating to `true`.
+5. Observe how `KeyExpireAsync` resets the TTL.
+6. Check Redis Commander to visually confirm the TTL (Time-To-Live) resetting back to the full window.
 
----
 
-### Concept 5: IDistributedCache Abstraction (`DistributedCacheController`)
-* **API Endpoints:**
-  - `POST /api/DistributedCache/product/set` (Save product using IDistributedCache)
-  - `GET /api/DistributedCache/product/get` (Retrieve product)
-  - `DELETE /api/DistributedCache/product/delete` (Remove product)
-* **What it teaches:** Standard .NET caching abstraction. It hides Redis-specific commands so you can swap caching engines easily. Notice how keys are automatically prefixed (e.g. `RedisCacheLearning_[yourKey]`).
-* **Debugging Walkthrough:**
-  1. Open [DistributedCacheController.cs](file:///c:/Study/.NET-Projects/Redis-01/RedisCacheLearning/Controllers/DistributedCacheController.cs).
-  2. Place a breakpoint in `SetProduct`.
-  3. POST a product to `/api/DistributedCache/product/set?key=dist_item`.
-  4. Look at **RedisInsight**. Notice that the key created in Redis is actually named `RedisCacheLearning_dist_item`. This prefixing prevents key collisions when sharing a Redis database.
-  5. Notice that we set both Absolute and Sliding expiration options in `DistributedCacheEntryOptions` object, which is handled automatically by the .NET caching framework.
+### 3️⃣ Complex Object Serialization
+🔗 **[ObjectCacheController.cs](file:///C:/Study/.NET-Projects/Redis-01/RedisCacheLearning/Controllers/ObjectCacheController.cs)**
 
----
+- `POST /api/ObjectCache/set`
+- `GET /api/ObjectCache/get`
 
-### Concept 6: Cache Refresh Strategies (`CacheRefreshController`)
-* **API Endpoints:**
-  - `POST /api/CacheRefresh/simulate-data-change` (Modify DB data)
-  - `POST /api/CacheRefresh/full-refresh` (Flush matching keys via SCAN and reload all)
-  - `POST /api/CacheRefresh/delta-refresh` (Pull & update modified records only)
-  - `GET /api/CacheRefresh/compare` (Run both back-to-back and audit performance)
-* **What it teaches:** How to refresh cache stores. Full Refresh is simple but resource-intensive. Delta Refresh is highly optimized, updating only changed keys by tracking sync timestamps.
-* **Debugging Walkthrough:**
-  1. Open [CacheRefreshController.cs](file:///c:/Study/.NET-Projects/Redis-01/RedisCacheLearning/Controllers/CacheRefreshController.cs).
-  2. Place a breakpoint inside `DeltaRefresh()` (around line 160) at `GetModifiedSinceAsync`.
-  3. Run the following sequence:
-     - **Step A:** Call `POST /api/CacheRefresh/full-refresh` to ensure cache is fully loaded.
-     - **Step B:** Call `POST /api/CacheRefresh/simulate-data-change`. This updates products 2 and 4 in our database and sets their `LastModified` to now.
-     - **Step C:** Call `POST /api/CacheRefresh/delta-refresh`.
-  4. Step through the `DeltaRefresh` method. You will notice that `modifiedProducts` returns **only 2 products** (IDs 2 and 4). Only those 2 specific keys are rewritten to Redis. The other 3 keys in Redis remain completely untouched. This saves database bandwidth and Redis write operations!
+**What this teaches**: Redis stores raw strings or binary data. This concept demonstrates how to serialize complex C# objects (like a `Product` model) into JSON before storing, and how to deserialize them back upon retrieval.
 
----
+**Step-by-step debugging walkthrough**:
+1. Set a breakpoint on **Line 59** inside `SetObject()`.
+2. Call `POST /api/ObjectCache/set` via Swagger and pass in a JSON product body.
+3. Observe the `product` object converting into the `jsonPayload` string.
+4. Set a breakpoint on **Line 98** inside `GetObject()` and fetch the key. Inspect how `JsonSerializer.Deserialize` recreates the `Product` instance from the raw string.
 
-## 👁️ Step 4: Visually Inspect Keys in Redis Insight
 
-Keep **RedisInsight** open while testing:
+### 4️⃣ Cache-Aside Pattern
+🔗 **[CacheAsideController.cs](file:///C:/Study/.NET-Projects/Redis-01/RedisCacheLearning/Controllers/CacheAsideController.cs)**
 
-1. **View Keys:** Click **Browse** to see keys like `product:1`, `product:2`, etc.
-2. **Inspect Contents:** Click on any key to inspect its stringified JSON payload, TTL remaining, and memory footprint.
-3. **Trace TTL:** Watch the sliding expiration keys extend their lifespan in real-time when you execute a `GET` request.
+- `GET /api/CacheAside/product/{id}`
+
+**What this teaches**: The most common caching pattern. It attempts to load from the cache first; if missing (cache miss), it queries the slow primary database, caches the result, and returns it.
+
+**Step-by-step debugging walkthrough**:
+1. Set a breakpoint on **Line 57** inside `GetProduct()`.
+2. Call `GET /api/CacheAside/product/1` (this represents a Cache Miss).
+3. Follow the execution path: observe `cachedProduct.HasValue` is `false`. It hits the slow mock database (simulated 1.5s delay) and populates Redis on line 95.
+4. Trigger a second call to the same endpoint. Watch the execution path jump into the `if (cachedProduct.HasValue)` block, skipping the database entirely for a lightning-fast response (Cache Hit).
+
+
+### 5️⃣ Distributed Cache Abstraction
+🔗 **[DistributedCacheController.cs](file:///C:/Study/.NET-Projects/Redis-01/RedisCacheLearning/Controllers/DistributedCacheController.cs)**
+
+- `POST /api/DistributedCache/product/set`
+- `GET /api/DistributedCache/product/get`
+- `DELETE /api/DistributedCache/product/delete`
+
+**What this teaches**: Using Microsoft's built-in `IDistributedCache` interface instead of direct `StackExchange.Redis`. This abstraction allows you to swap out caching providers (Redis, SQL Server, NCache) easily but restricts you to simpler byte/string operations.
+
+**Step-by-step debugging walkthrough**:
+1. Set a breakpoint on **Line 63** inside `SetProduct()`.
+2. Call `POST /api/DistributedCache/product/set` via Swagger.
+3. Observe how the options (Absolute & Sliding expiration) are bundled into `DistributedCacheEntryOptions`.
+4. Check Redis Commander: notice that keys are automatically prefixed (e.g., `RedisCacheLearning_product_dist`) based on the `InstanceName` configuration in [Program.cs](file:///C:/Study/.NET-Projects/Redis-01/RedisCacheLearning/Program.cs).
+
+
+### 6️⃣ Cache Refresh Strategies (Full vs Delta)
+🔗 **[CacheRefreshController.cs](file:///C:/Study/.NET-Projects/Redis-01/RedisCacheLearning/Controllers/CacheRefreshController.cs)**
+
+- `POST /api/CacheRefresh/simulate-data-change`
+- `POST /api/CacheRefresh/full-refresh`
+- `POST /api/CacheRefresh/delta-refresh`
+- `GET /api/CacheRefresh/compare`
+
+**What this teaches**: How to efficiently update cache data. Compares a "Full Refresh" (clearing all keys and reloading everything) versus a "Delta Refresh" (using a timestamp to only update records modified since the last sync).
+
+**Step-by-step debugging walkthrough**:
+1. Set a breakpoint on **Line 102** (`FullRefresh`) and **Line 161** (`DeltaRefresh`).
+2. Run `POST /api/CacheRefresh/simulate-data-change` to modify some mock data.
+3. Run `POST /api/CacheRefresh/delta-refresh`. Note how it pulls the `last-refresh-timestamp` and queries only the modified records.
+4. Call `GET /api/CacheRefresh/compare` to see the performance differences side-by-side.
+
 
 ---
 
-## 🚀 Step 5: Test Endpoints using the HTTP File
+## 👁️ 3. VISUAL INSPECTION SECTION
 
-You don't need to use Swagger! If you are using VS Code, install the extension **REST Client**. 
+To truly understand what is happening under the hood, keep **Redis Commander** open at `http://localhost:8081` while running these endpoints.
 
-1. Open **[RedisCacheLearning.http](file:///c:/Study/.NET-Projects/Redis-01/RedisCacheLearning/RedisCacheLearning.http)**.
-2. Click `Send Request` above any endpoint block to execute the request.
-3. The response headers, body, execution time, and caching headers will display in a split window on the right.
-4. Run the requests in the recommended testing sequence at the bottom of the file to see the cache-aside and refresh behaviors execute cleanly.
+| Feature Tested | What to Look For in Redis Commander |
+| :--- | :--- |
+| **Basic Sets** | Refresh the tree on the left. You should see raw keys appearing with string values. |
+| **Expirations** | Select a key and look at the `TTL` property in the main window. Refresh the UI to watch it count down in real-time. |
+| **Sliding Expirations** | Watch a sliding key's TTL. It will decrease, but the moment you call the API's `GET` endpoint, refresh the UI and watch the TTL jump back up to the maximum window limit. |
+| **Object Serialization** | The value of the key will be raw JSON format (e.g., `{"Id":99,"Name":"Noise Cancelling Earbuds"...}`). |
+| **Distributed Cache** | Look for keys with the `RedisCacheLearning_` prefix. Notice that `IDistributedCache` handles serialization (including metadata like absolute/sliding values) differently inside Redis compared to raw strings. |
+
+
+---
+
+## 🧪 4. HTTP FILE TESTING SECTION
+
+You can test the entire API flow without a browser using the included `.http` file:
+🔗 **[RedisCacheLearning.http](file:///C:/Study/.NET-Projects/Redis-01/RedisCacheLearning/RedisCacheLearning.http)**
+
+### Recommended Testing Order
+To get the most out of the project, run the `.http` requests in this logical sequence:
+
+1. **Basic Operations** (Section 1): Test `SetBasicString`, `GetBasicString`, `CheckExists`, and `DeleteKey` to verify connectivity.
+2. **Expirations** (Section 2): Test `SetAbsoluteExpiry`, wait 10 seconds, then try to get it (it should fail). Then test `SetSlidingExpiry` and hit it repeatedly within 15 seconds to keep it alive.
+3. **Complex Objects** (Section 3): Store a JSON object and retrieve it.
+4. **Cache-Aside Pattern** (Section 4): Run `CacheAsideMiss` (observe the slow response time). Then run `CacheAsideHit` immediately after (observe the sub-10ms response time).
+5. **Distributed Cache** (Section 5): Test Microsoft's abstraction wrapper operations.
+6. **Refresh Strategies** (Section 6): Follow the specific 5-step sequence (`Step A` through `Step E`) documented in the `.http` file to see the performance difference between Full and Delta cache refreshes.
