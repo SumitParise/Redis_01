@@ -1,4 +1,6 @@
-version: '3.8'
+# docker-compose.yml - Redis Caching Learning Project
+# Run: docker-compose up -d
+# Our Redis runs on HOST port 6380 to avoid conflicts with other Redis instances on 6379.
 
 services:
   redis:
@@ -6,7 +8,10 @@ services:
     container_name: redis_cache_learning
     restart: always
     ports:
-      - "6379:6379"
+      # Using port 6380 on the HOST to avoid conflict with any other Redis
+      # instance already running on port 6379 (e.g., from another project).
+      # Inside the Docker network, our Redis still listens on 6379.
+      - "6380:6379"
     volumes:
       - redis_data:/data
 
@@ -15,6 +20,8 @@ services:
     container_name: redis_commander_learning
     restart: always
     environment:
+      # Redis Commander talks to our Redis container INTERNALLY (Docker network),
+      # so it still connects on port 6379 (no conflict here).
       - REDIS_HOSTS=local:redis:6379
     ports:
       - "8081:8081"
